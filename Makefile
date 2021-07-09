@@ -328,6 +328,8 @@ prod-image: ## Build production image
 	@echo "# building prod image"
 	IMAGE_TAG=$(IMAGE_TAG) VPP_VERSION=$(VPP_VERSION) ./docker/prod/build.sh
 
+export_makefile_vars:
+	$(foreach v, $(.VARIABLES), $(if $(filter file,$(origin $(v))), $(info $(v)=$($(v)))))
 
 .PHONY: help \
 	agent agentctl build clean install purge \
@@ -339,4 +341,4 @@ prod-image: ## Build production image
 	get-linkcheck check-links \
 	get-yamllint yamllint \
 	images dev-image prod-image \
-	perf perf-all
+	perf perf-all export_makefile_vars

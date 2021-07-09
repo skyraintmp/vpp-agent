@@ -35,21 +35,41 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
-      - name: Dev image
-        run: make dev-image
-      - name: Prod image
-        run: make prod-image
 
-      - name: Tag images
-        run: |
-          docker tag dev_vpp_agent ligato/dev-vpp-agent:latest
-          docker tag prod_vpp_agent ligato/vpp-agent:latest
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Get makefile variables
+        run:
+          make -s export_makefile_vars >> $GITHUB_ENV
+
       - name: Docker Login
         run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-      - name: Push images
+
+      - name: Build multi-arch images and push
         run: |
-          docker push ligato/dev-vpp-agent:latest
-          docker push ligato/vpp-agent:latest
+          docker buildx build -f docker/dev/Dockerfile \
+            --platform linux/amd64,linux/arm64 \
+            --output "type=image,push=true" \
+            --build-arg VPP_IMG=${{ env.VPP_IMG }} \
+            --build-arg VPP_VERSION=${{ env.VPP_VERSION }} \
+            --build-arg VERSION=${{ env.VERSION }} \
+            --build-arg COMMIT=${{ env.COMMIT }} \
+            --build-arg BRANCH=${{ env.BRANCH }} \
+            --build-arg BUILD_DATE=${{ env.BUILD_DATE }} \
+            --build-arg SKIP_CHECK=${{ env.SKIP_CHECK }} \
+            --tag ligato/dev-vpp-agent:latest \
+            ${{ env.DOCKER_BUILD_ARGS }} .
+
+          docker buildx build -f docker/prod/Dockerfile \
+            --platform linux/amd64,linux/arm64 \
+            --output "type=image,push=true" \
+            --build-arg DEV_IMG=${{ env.DEV_IMG || 'ligato/dev-vpp-agent' }} \
+            --build-arg VPP_VERSION=${{ env.VPP_VERSION }} \
+            --tag ligato/vpp-agent:latest \
+            ${{ env.DOCKER_BUILD_ARGS }} docker/prod
 
   deploy-tag:
     name: deploy version
@@ -59,10 +79,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
-      - name: Dev image
-        run: make dev-image
-      - name: Prod image
-        run: make prod-image
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Get makefile variables
+        run:
+          make -s export_makefile_vars >> $GITHUB_ENV
 
       - name: Get tag
         id: vars
@@ -72,16 +97,32 @@ jobs:
           echo ::group::Env vars
           echo $(env | sort)
           echo ::endgroup::
-      - name: Tag images
-        run: |
-          docker tag dev_vpp_agent ligato/dev-vpp-agent:${{ steps.vars.outputs.tag }}
-          docker tag prod_vpp_agent ligato/vpp-agent:${{ steps.vars.outputs.tag }}
+
       - name: Docker Login
         run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-      - name: Push images
+
+      - name: Build multi-arch images and push
         run: |
-          docker push ligato/dev-vpp-agent:${{ steps.vars.outputs.tag }}
-          docker push ligato/vpp-agent:${{ steps.vars.outputs.tag }}
+          docker buildx build -f docker/dev/Dockerfile \
+            --platform linux/amd64,linux/arm64 \
+            --output "type=image,push=true" \
+            --build-arg VPP_IMG=${{ env.VPP_IMG }} \
+            --build-arg VPP_VERSION=${{ env.VPP_VERSION }} \
+            --build-arg VERSION=${{ env.VERSION }} \
+            --build-arg COMMIT=${{ env.COMMIT }} \
+            --build-arg BRANCH=${{ env.BRANCH }} \
+            --build-arg BUILD_DATE=${{ env.BUILD_DATE }} \
+            --build-arg SKIP_CHECK=${{ env.SKIP_CHECK }} \
+            --tag ligato/dev-vpp-agent:${{ steps.vars.outputs.tag }} \
+            ${{ env.DOCKER_BUILD_ARGS }} .
+
+          docker buildx build -f docker/prod/Dockerfile \
+            --platform linux/amd64,linux/arm64 \
+            --output "type=image,push=true" \
+            --build-arg DEV_IMG=${{ env.DEV_IMG || 'ligato/dev-vpp-agent' }} \
+            --build-arg VPP_VERSION=${{ env.VPP_VERSION }} \
+            --tag ligato/vpp-agent:${{ steps.vars.outputs.tag }} \
+            ${{ env.DOCKER_BUILD_ARGS }} docker/prod
 
   deploy-release:
     name: deploy release
@@ -91,10 +132,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
-      - name: Dev image
-        run: make dev-image
-      - name: Prod image
-        run: make prod-image
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Get makefile variables
+        run:
+          make -s export_makefile_vars >> $GITHUB_ENV
 
       - name: Get tag
         id: vars
@@ -104,13 +150,29 @@ jobs:
           echo ::group::Env vars
           echo $(env | sort)
           echo ::endgroup::
-      - name: Tag images
-        run: |
-          docker tag dev_vpp_agent ligato/dev-vpp-agent:${{ steps.vars.outputs.tag }}
-          docker tag prod_vpp_agent ligato/vpp-agent:${{ steps.vars.outputs.tag }}
+
       - name: Docker Login
         run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-      - name: Push images
+
+      - name: Build multi-arch images and push
         run: |
-          docker push ligato/dev-vpp-agent:${{ steps.vars.outputs.tag }}
-          docker push ligato/vpp-agent:${{ steps.vars.outputs.tag }}
+          docker buildx build -f docker/dev/Dockerfile \
+            --platform linux/amd64,linux/arm64 \
+            --output "type=image,push=true" \
+            --build-arg VPP_IMG=${{ env.VPP_IMG }} \
+            --build-arg VPP_VERSION=${{ env.VPP_VERSION }} \
+            --build-arg VERSION=${{ env.VERSION }} \
+            --build-arg COMMIT=${{ env.COMMIT }} \
+            --build-arg BRANCH=${{ env.BRANCH }} \
+            --build-arg BUILD_DATE=${{ env.BUILD_DATE }} \
+            --build-arg SKIP_CHECK=${{ env.SKIP_CHECK }} \
+            --tag ligato/dev-vpp-agent:${{ steps.vars.outputs.tag }} \
+            ${{ env.DOCKER_BUILD_ARGS }} .
+
+          docker buildx build -f docker/prod/Dockerfile \
+            --platform linux/amd64,linux/arm64 \
+            --output "type=image,push=true" \
+            --build-arg DEV_IMG=${{ env.DEV_IMG || 'ligato/dev-vpp-agent' }} \
+            --build-arg VPP_VERSION=${{ env.VPP_VERSION }} \
+            --tag ligato/vpp-agent:${{ steps.vars.outputs.tag }} \
+            ${{ env.DOCKER_BUILD_ARGS }} docker/prod
